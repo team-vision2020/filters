@@ -1,0 +1,19 @@
+- Sprint:
+    - build training step, i.e. corpus building from instaFilters
+        -> we need histogram statistics per filter, per scene -> just use average for now?
+        -> dictionary has representative histogram per filter for a scene 'scene' labels
+            -> cluster scenes according to histograms
+        -> 
+    - import scene detection
+        -> how similar are scenes to each other? augment low data with 'nearby scene' distributions
+    - run scene detection on input image, reference corpus for knowledge
+
+    - persist corpus knowledge so we can update it across sessions  
+- Action items:
+    - training step
+
+- Style transfer notes:
+    - feature activations come from pretrained VGG (VGG - overparameterized)
+    - calculate gram matrix per training image, and vectorize 
+    - get average gram matrix or track all gram matrices and train nn per scene -> per object (this step?)
+    - see how close our input image gram matrix matches or if NN says we match input?
