@@ -65,6 +65,7 @@ def change_saturations(images, offset):
 
 def gotham_single(image):
     # too hard to parse, going to inefficient this
+    print(image.shape)
     original_image = skimage.img_as_float(image)
     r = original_image[:, :, 0]
     b = original_image[:, :, 2]
@@ -87,6 +88,8 @@ def gotham_single(image):
 
 def gotham(images):
     print(images.shape)
+    if images.ndim == 3:
+        return gotham_single(images)
     return np.asarray([gotham_single(images[i]) for i in range(images.shape[0])])
 
 def clarendon(images):
