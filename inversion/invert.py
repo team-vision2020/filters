@@ -80,7 +80,7 @@ class Inverter(object):
         print("Inverting {} image with filter {}".format(image.shape, filter.filter_type))
         
         # Extend the image (so that we can pass 3x3 batches at the edges too)
-        extended_image = np.zeros((image.shape[0] + 2, image.shape[1] + 2, 3, 3, 3))
+        extended_image = np.zeros((image.shape[0] + 2, image.shape[1] + 2, 3))
         extended_image[1:-1, 1:-1] = image
         
         # Extend the rows
@@ -98,8 +98,7 @@ class Inverter(object):
         extended_image[-1, -1] = extended_image[-1, -2]
 
         # We split the filtered image into 3x3 windows and store all of those.
-        # We disregard the edge pixels, unfortunately.
-        data_points = np.zeros(image.shape)
+        data_points = np.zeros((extended_image.shape[0] - 2, extended_image.shape[1] - 2, 3, 3, 3))
 
         for cent_y in range(0, data_points.shape[0]):
             for cent_x in range(0, data_points.shape[1]):
@@ -118,7 +117,7 @@ class Inverter(object):
 
         print("Done inverting {} image with filter {}".format(image.shape, filter.filter_type))
 
-        return outIm
+        return unfilteredIm
 
 
 def _dataset(filename, filter, img_count=1000000):
