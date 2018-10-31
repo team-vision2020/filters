@@ -1,6 +1,12 @@
 structure/data/
 *.jpg
 
+# Miniplaces
+miniplaces/
+
+# Dataset NPZs
+*_dataset.npz
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
