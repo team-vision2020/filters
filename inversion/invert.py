@@ -78,10 +78,28 @@ class Inverter(object):
         model = self.models[filter.filter_type]
 
         print("Inverting {} image with filter {}".format(image.shape, filter.filter_type))
+        
+        # Extend the image (so that we can pass 3x3 batches at the edges too)
+        extended_image = np.zeros((image.shape[0] + 2, image.shape[1] + 2, 3, 3, 3))
+        extended_image[1:-1, 1:-1] = image
+        
+        # Extend the rows
+        extended_image[0] = extended_image[1]
+        extended_image[-1] = extended_image[-2]
+        
+        # Extend the columns
+        extended_image[:, 0] = extended_image[:, 1]
+        extended_image[:, -1] = extended_image[:, -2]
+        
+        # Finally the corners
+        extended_image[0, 0] = extended_image[0, 1]
+        extended_image[0, -1] = extended_image[0, -2]
+        extended_image[-1, 0] = extended_image[-1, 1]
+        extended_image[-1, -1] = extended_image[-1, -2]
 
         # We split the filtered image into 3x3 windows and store all of those.
         # We disregard the edge pixels, unfortunately.
-        data_points = np.zeros((image.shape[0] - 2, image.shape[1] - 2, 3, 3, 3))
+        data_points = np.zeros(image.shape)
 
         for cent_y in range(0, data_points.shape[0]):
             for cent_x in range(0, data_points.shape[1]):
@@ -89,7 +107,7 @@ class Inverter(object):
                 orig_y = cent_y + 1
                 orig_x = cent_x + 1
 
-                sample = image[orig_y - 1:orig_y + 2, orig_x - 1:orig_x + 2, :]
+                sample = extended_image[orig_y - 1:orig_y + 2, orig_x - 1:orig_x + 2, :]
                 data_points[cent_y, cent_x] = sample
 
         # We run the predictions
@@ -97,10 +115,6 @@ class Inverter(object):
 
         # And we convert the predictions to the correct shape
         unfilteredIm = outData.reshape(data_points.shape[0], data_points.shape[1], 3)
-
-        # Add back the edge rows/columns
-        outIm = np.copy(image)
-        np.copyto(outIm[1:-1, 1:-1, :], unfilteredIm)
 
         print("Done inverting {} image with filter {}".format(image.shape, filter.filter_type))
 
