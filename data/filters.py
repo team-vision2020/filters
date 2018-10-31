@@ -165,6 +165,9 @@ class Filter(object):
         return keras.utils.to_categorical(self.FILTER_TYPES.index(self.filter_type), len(self.FILTER_TYPES))
 
     @classmethod
-    def from_categorical(cls, categorical):
-        filter_type = cls.FILTER_TYPES[np.argmax(categorical)]
-        return Filter(filter_type)
+    def from_categorical(cls, categorical, threshold=0.7):
+        max_conf_idx = np.argmax(categorical)
+        if categorical[max_conf_idx] >= 0.7:
+            return Filter(cls.FILTER_TYPES[max_conf_idx])
+        else:
+            return None

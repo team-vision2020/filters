@@ -72,13 +72,15 @@ class Inverter(object):
         print("Loaded all models.")
 
     def invert(self, image, filter):
+        # TODO(mert): Probably terrible idea.
+        if filter == None:
+            return image
+
         if filter.filter_type == Filter.IDENTITY:
             return image
 
         model = self.models[filter.filter_type]
 
-        print("Inverting {} image with filter {}".format(image.shape, filter.filter_type))
-        
         # Extend the image (so that we can pass 3x3 batches at the edges too)
         extended_image = np.zeros((image.shape[0] + 2, image.shape[1] + 2, 3))
         extended_image[1:-1, 1:-1] = image
@@ -114,8 +116,6 @@ class Inverter(object):
 
         # And we convert the predictions to the correct shape
         unfilteredIm = outData.reshape(data_points.shape[0], data_points.shape[1], 3)
-
-        print("Done inverting {} image with filter {}".format(image.shape, filter.filter_type))
 
         return unfilteredIm
 
