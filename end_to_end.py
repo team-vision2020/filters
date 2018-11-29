@@ -8,22 +8,49 @@ import keras.models
 import utility
 from data.filters import Filter
 from inversion.invert import Inverter
+from scipy.stats import mode
 import detection.histogram
 import numpy as np
 import random
+import matplotlib.pyplot as plt
 
 
 """Filter classifier trained on MiniPlaces."""
-NNFilterClassifier = keras.models.load_model(os.path.join(utility.ROOT_DIR, "detection/NNFilterClassifier.h5"))
+NNFilterClassifier = keras.models.load_model(os.path.join(utility.ROOT_DIR, "detection/FullNNFilter3.h5"))
 
 """Filter inverter"""
 inverter = Inverter()
 
 
+def split_img(X):
+    Xsmall = []
+    for j in range(0, X.shape[1], X.shape[1] // 4):
+        for k in range(0, X.shape[1], X.shape[1] // 4):
+            block = X[j : j + 32, k : k + 32]
+            Xsmall.append(block)
+
+    Xsmall = np.array(Xsmall)
+    return Xsmall
+
+
+def prediction_voting(predict):
+    mapping = ["identity", "clarendon", "gingham", "juno", "lark", "gotham", "reyes"]
+    votes = np.argmax(predict, axis=1)
+    vote = mode(votes).mode[0]
+
+    return mapping[vote]
+
+
 def _detect(images, threshold):
-    hists = detection.histogram.three_channel_histogram(images)
-    pred_vectors = NNFilterClassifier.predict(hists)
-    filters = [Filter.from_categorical(prediction, threshold) for prediction in pred_vectors]
+    # Threshold is unused in the new model, as it returns the best vote.
+    filters = []
+
+    for image in images:
+        splits = split_img(image * 255.0)
+        pred_vectors = NNFilterClassifier.predict(splits)
+        best_guess = prediction_voting(pred_vectors)
+
+        filters.append(Filter(best_guess))
 
     return filters
 
@@ -33,33 +60,56 @@ def invert(images, filters, threshold):
         if i % 20 == 0:
             print("Inverting image {}/{}".format(i + 1, len(images)))
         return inverter.invert(image, filter)
-    if filters is None:
-        filters = _detect(images, threshold)
-    return [invert_info(i, image, filter) for i, image, filter in zip(range(len(images)), images, filters)]
+    if threshold is not None:
+        filters_d = _detect(images, threshold)
+        
+        same = 0
+        for f, f_p in zip(filters, filters_d):
+            same += (f.filter_type == f_p.filter_type)
+
+        detection_acc = same / len(filters)
+        print("Detected with accuracy: {}".format(detection_acc))
+
+        filters = filters_d
+
+    return [invert_info(i, image, filter) for i, image, filter in zip(range(len(images)), images, filters)], filters
 
 
 def roundtrip_sad(ims, f_ims, filters, threshold):
     print("Computing roundtrip SAD")
-    i_ims = invert(f_ims, filters, threshold)
+    i_ims, p_filters = invert(f_ims, filters, threshold)
 
     total_sad = 0
-    for i, im, i_im in zip(range(len(ims)), ims, i_ims):
-        # plt.imsave("/Users/mert/Downloads/inverted_{}.png".format(i), i_im)
-        total_sad += np.sum(np.absolute(im - i_im))
+    max_sad, max_sad_i = 0, 0
+    min_sad, min_sad_i = 0, 0
+
+    for i, im, filter, i_im in zip(range(len(ims)), ims, p_filters, i_ims):
+        plt.imsave(os.path.join(utility.ROOT_DIR, 'output/{}_{}_inverted.png'.format(i, filter.filter_type)), i_im)
+        sad = np.sum(np.absolute(im - i_im))
+        total_sad += sad
+
+        if sad > max_sad:
+            max_sad = sad
+            max_sad_i = i
+
+        if sad < min_sad:
+            min_sad = sad
+            min_sad_i = i
 
     mean_sad = total_sad / len(ims)
     pp_mean_sad = mean_sad / ims[0].size
 
     print("Roundtrip per-pixel SAD error for {} images: {}".format(len(ims), pp_mean_sad))
+    print("Max SAD: {},{}, min SAD: {}, {}".format(max_sad, max_sad_i, min_sad, min_sad_i))
 
     return pp_mean_sad
 
 
-def baseline_sad(ims, f_ims):
+def baseline_sad(ims, f_ims, filters):
     total_sad = 0
-    for i, f_im, im in zip(range(len(f_ims)), f_ims, ims):
-        # plt.imsave("/Users/mert/Downloads/filtered_{}.png".format(i), f_im)
-        # plt.imsave("/Users/mert/Downloads/baseline_{}.png".format(i), im)
+    for i, f_im, im, filter in zip(range(len(f_ims)), f_ims, ims, filters):
+        plt.imsave(os.path.join(utility.ROOT_DIR, 'output/{}_{}.png'.format(i, filter.filter_type)), f_im)
+        plt.imsave(os.path.join(utility.ROOT_DIR, 'output/{}.png'.format(i)), im)
         total_sad += np.sum(np.absolute(f_im - im))
 
     mean_sad = total_sad / len(ims)
@@ -70,7 +120,7 @@ def baseline_sad(ims, f_ims):
     return pp_mean_sad
 
 
-SAMPLES = 10000
+SAMPLES = 900
 APPLICABLE_FILTERS = Filter.FILTER_TYPES[1:]  # Ignore the `identity` filter.
 
 
@@ -115,8 +165,8 @@ def run_with_threshold(threshold):
     print("Filtering {} ims with randomly selected filters".format(SAMPLES))
     f_ims = [filter.apply(im) for filter, im in zip(filters, ims)]
 
-    rt = roundtrip_sad(ims, f_ims, None if threshold else filters, threshold=threshold)
-    bs = baseline_sad(ims, f_ims)
+    rt = roundtrip_sad(ims, f_ims, filters, threshold=threshold)
+    bs = baseline_sad(ims, f_ims, filters)
 
     return rt, bs
 
@@ -124,4 +174,4 @@ def run_with_threshold(threshold):
 # 0.7 is the best threshold [0.7, 0.95] (Experimentally found with `search_for_threshold` on that range)
 run_with_threshold(0.7)
 # Run with known filters, bypassing the detection step.
-run_with_threshold(None)
+# run_with_threshold(None)
